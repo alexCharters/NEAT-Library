@@ -8,13 +8,13 @@ namespace MAIN
 	class MAIN
 	{
 		static List<List<double>> inputsList;
-		static List<int> outputs;
+		static List<Tuple<int, int, int>> outputs;
 		static void Main(string[] args)
 		{
-			using (StreamReader reader = new StreamReader("C:/Users/Alex/Desktop/creditcard.csv"))
+			using (StreamReader reader = new StreamReader("C:/Users/Alex/Desktop/iris.csv"))
 			{
 				inputsList = new List<List<double>>();
-				outputs = new List<int>();
+				outputs = new List<Tuple<int, int, int>>();
 				reader.ReadLine();
 				int count = 0;
 				while (!reader.EndOfStream)
@@ -24,23 +24,38 @@ namespace MAIN
 					var values = line.Split(',');
 
 					inputsList.Add(new List<double>());
-					for (int i = 0; i < 30; i++)
+					for (int i = 1; i < 5; i++)
 					{
 						inputsList[count].Add(double.Parse(values[i]));
 					}
-					outputs.Add(Int32.Parse(values[30].Trim(new char[] { '"', '\\' })));
+
+					if (values[5] == "Iris-setosa") {
+						outputs.Add(new Tuple<int, int, int>(1,0,0));
+					}
+					if (values[5] == "Iris-versicolor")
+					{
+						outputs.Add(new Tuple<int, int, int>(0, 1, 0));
+					}
+					if (values[5] == "Iris-setosa")
+					{
+						outputs.Add(new Tuple<int, int, int>(0, 0, 1));
+					}
+
 					count++;
 				}
 			}
 
-			Population pop = new Population(30, new List<string>() { "fraud" }, 200, FitnessFunction);
+			Population pop = new Population(4, new List<string>() { "Iris-setosa", "Iris-versicolor", "Iris-virginica" }, 40, FitnessFunction);
 
 			while (true)
 			{
 				pop.Run();
 				pop.Select();
 
-				Console.WriteLine(pop.AvgPopFitness);
+				Console.WriteLine();
+				Console.WriteLine("Avg. Fitness: "+pop.AvgPopFitness);
+				Console.WriteLine("best Fitness: " + pop.BestNetwork.Fitness);
+				Console.WriteLine();
 			}
 
 			//NeuralNetwork NN = new NeuralNetwork(inputs, outputs, new Dictionary<int, Tuple<int, int>>());
@@ -139,17 +154,38 @@ namespace MAIN
 		public static Random rand = new Random();
 		public static double FitnessFunction(NeuralNetwork NN)
 		{
-			double avgPerformance = 0;
+			double numCorrect = 0;
 			for (int i = 0; i < inputsList.Count; i++)
 			{
 				List<double> inputs = inputsList[i];
-				NN.Evaluate(inputs).TryGetValue("fraud", out double result);
-				if ((result > .5 && outputs[i] == 1) || (result < .5 && outputs[i] == 0))
+				Dictionary<string, double> results = NN.Evaluate(inputs);
+				results.TryGetValue("Iris-setosa", out double setosa);
+				results.TryGetValue("Iris-versicolor", out double versicolor);
+				results.TryGetValue("Iris-virginica", out double virginica);
+				if (outputs[i].Equals(new Tuple<int, int, int>(1, 0, 0)))
 				{
-					avgPerformance += 1;
+					numCorrect += Math.Abs(1 - setosa);
+					numCorrect += Math.Abs(0 - versicolor);
+					numCorrect += Math.Abs(0 - virginica);
+				}
+				else if (outputs[i].Equals(new Tuple<int, int, int>(0, 1, 0)))
+				{
+					numCorrect += Math.Abs(0 - setosa);
+					numCorrect += Math.Abs(1 - versicolor);
+					numCorrect += Math.Abs(0 - virginica);
+				}
+				else if (outputs[i].Equals(new Tuple<int, int, int>(0, 0, 1)))
+				{
+					numCorrect += Math.Abs(0 - setosa);
+					numCorrect += Math.Abs(0 - versicolor);
+					numCorrect += Math.Abs(1 - virginica);
+				}
+				else
+				{
+					throw new ArgumentException("dont use .Equals to compare doubles");
 				}
 			}
-			return avgPerformance / inputsList.Count;
+			return 3 - (numCorrect/outputs.Count);
 		}
 	}
 }

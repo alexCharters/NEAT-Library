@@ -13,11 +13,12 @@ namespace NEAT
 		public delegate double analysisFunction(NeuralNetwork NN);
 		private readonly analysisFunction run;
 		public List<NeuralNetwork> Networks { get; private set; }
-		public double SpeciatingThreshold = 1.2;
+		public double SpeciatingThreshold = 1;
 		public double killRate = .5;
 		public List<Species> speciesList;
 		public double AvgPopFitness { get; private set; }
 		public int Size { get; private set; }
+		public NeuralNetwork BestNetwork { get; private set; }
 
 		public Population(IEnumerable<double> inputs, IEnumerable<string> outputNames, int size, analysisFunction _run)
 		{
@@ -49,30 +50,111 @@ namespace NEAT
 			}
 		}
 
+		public bool isConsistent()
+		{
+			bool consistent = true;
+			foreach (NeuralNetwork NN in Networks) {
+				if (!NN.isConsistent()) {
+					consistent = false;
+				}
+			}
+			return consistent;
+		}
+
 		public void Run()
 		{
-			List<double> fitnesses = new List<double>();
-			int count = 0;
+			Dictionary<int, double> fitnesses = new Dictionary<int, double>();
 			double totalfitness = 0;
-			foreach (NeuralNetwork NN in Networks)
+
+			bool threaded = false;
+			if (threaded)
 			{
-				Interlocked.Increment(ref count);
-				double fitness = run(NN);
-				totalfitness += fitness;
-				fitnesses.Add(fitness);
-				Console.WriteLine(count + " -> " + fitness);
+				Thread thread1 = new Thread(() =>
+				{
+					for (int i = 0; i < Networks.Count / 4; i++)
+					{
+						NeuralNetwork NN = Networks.ElementAt(i);
+						double fitness = run(NN);
+						totalfitness += fitness;
+						fitnesses.Add(i, fitness);
+						//Console.WriteLine(i + " -> " + fitness);
+					}
+				});
+				Thread thread2 = new Thread(() =>
+				{
+					for (int i = Networks.Count / 4; i < Networks.Count / 2; i++)
+					{
+						NeuralNetwork NN = Networks.ElementAt(i);
+						double fitness = run(NN);
+						totalfitness += fitness;
+						fitnesses.Add(i, fitness);
+						//Console.WriteLine(i + " -> " + fitness);
+					}
+				});
+				Thread thread3 = new Thread(() =>
+				{
+					for (int i = Networks.Count / 2; i < 3 * Networks.Count / 4; i++)
+					{
+						NeuralNetwork NN = Networks.ElementAt(i);
+						double fitness = run(NN);
+						totalfitness += fitness;
+						fitnesses.Add(i, fitness);
+						//Console.WriteLine(i + " -> " + fitness);
+					}
+				});
+				Thread thread4 = new Thread(() =>
+				{
+					for (int i = 3 * Networks.Count / 4; i < Networks.Count; i++)
+					{
+						NeuralNetwork NN = Networks.ElementAt(i);
+						double fitness = run(NN);
+						totalfitness += fitness;
+						fitnesses.Add(i, fitness);
+						//Console.WriteLine(i + " -> " + fitness);
+					}
+				});
+
+				thread1.Start();
+				thread2.Start();
+				thread3.Start();
+				thread4.Start();
+
+				thread1.Join();
+				thread2.Join();
+				thread3.Join();
+				thread4.Join();
 			}
+			else
+			{
+				int count = 0;
+				foreach (NeuralNetwork NN in Networks)
+				{
+					double fitness = run(NN);
+					totalfitness += fitness;
+					fitnesses.Add(count, fitness);
+					//Console.WriteLine(i + " -> " + fitness);
+					count++;
+				}
+			}
+
+
 
 			AvgPopFitness = totalfitness / Networks.Count;
 
 			for (int i = 0; i < Networks.Count(); i++)
 			{
-				Networks.ElementAt(i).Fitness = fitnesses.ElementAt(i);
+				fitnesses.TryGetValue(i, out double fitness);
+				if (BestNetwork == null || fitness > BestNetwork.Fitness) {
+					BestNetwork = Networks.ElementAt(i);
+				}
+				Networks.ElementAt(i).Fitness = fitness;
 			}
+			//Console.WriteLine("Run: " + isConsistent());
 		}
 
 		public void Select()
 		{
+			speciesList = new List<Species>();
 			foreach (NeuralNetwork NN in Networks)
 			{
 				bool foundSpecies = false;
@@ -90,7 +172,10 @@ namespace NEAT
 					speciesList.Add(new Species(NN));
 				}
 			}
-			speciesList.RemoveAll(x => x.networks.Count == 1);
+
+			//Console.WriteLine("speciesList Count after speciating: " + speciesList.Count);
+			//Console.WriteLine("Pop Consistency: " + isConsistent());
+
 			foreach (Species species in speciesList)
 			{
 				species.networks.Sort((NN1, NN2) => NN2.Fitness.CompareTo(NN1.Fitness));
@@ -107,6 +192,11 @@ namespace NEAT
 				}
 			}
 
+			speciesList.RemoveAll(x => x.networks.Count < 3);
+
+			//Console.WriteLine("speciesList Count after killing: " + speciesList.Count);
+			//Console.WriteLine("Pop Consistency: " + isConsistent());
+
 			int numSelectionBreed = (int)(.75 * Size);
 
 			speciesList.Sort((species1, species2) => species2.adjustedFitnessSum.CompareTo(species1.adjustedFitnessSum));
@@ -118,6 +208,9 @@ namespace NEAT
 				sharedFitnessTotal += species.adjustedFitnessSum;
 			}
 
+			//Console.WriteLine("speciesList Count after adjusting fitness sums: " + speciesList.Count);
+			//Console.WriteLine("Pop Consistency: " + isConsistent());
+
 			List<NeuralNetwork> childrenNetworks = new List<NeuralNetwork>();
 			Random rand = new Random();
 			for (int i = 0; i < speciesList.Count / 3; i++)
@@ -125,15 +218,24 @@ namespace NEAT
 				Species species = speciesList.ElementAt(i);
 				for (int j = 0; j < numSelectionBreed * (species.adjustedFitnessSum / sharedFitnessTotal); j++)
 				{
+					//Console.WriteLine("Pop Consistency: " + isConsistent());
 					NeuralNetwork NN1 = species.networks.ElementAt(rand.Next(species.networks.Count));
 					NeuralNetwork NN2 = species.networks.ElementAt(rand.Next(species.networks.Count));
 					NeuralNetwork Child = NeuralNetwork.Crossover(NN1, NN2, innovationNumbers);
 					Child.RandomMutation();
 					childrenNetworks.Add(Child);
+					//Console.WriteLine("Pop Consistency: " + isConsistent());
+					//Console.WriteLine();
 				}
 			}
 
-			for (int i = 0; i < Networks.Count - childrenNetworks.Count; i++)
+			//Console.WriteLine();
+			//Console.WriteLine("speciesList Count after selection breeding: "+ speciesList.Count);
+			//Console.WriteLine("Pop Consistency: " + isConsistent());
+			//Console.WriteLine();
+
+			int numRandomBreed = Networks.Count - childrenNetworks.Count;
+			for (int i = 0; i < numRandomBreed; i++)
 			{
 				Species randSpecies = speciesList[rand.Next(speciesList.Count)];
 
@@ -144,6 +246,16 @@ namespace NEAT
 
 				childrenNetworks.Add(child);
 			}
+
+			//Console.WriteLine();
+			//Console.WriteLine("speciesList Count after random breeding: " + speciesList.Count);
+			//Console.WriteLine("Pop Consistency: " + isConsistent());
+			//Console.WriteLine();
+
+			Networks = childrenNetworks;
+
+			//Console.WriteLine("total child networks after selection: " + childrenNetworks.Count);
+			//Console.WriteLine("Pop Consistency: " + isConsistent());
 		}
 	}
 
@@ -215,7 +327,7 @@ namespace NEAT
 
 		public void InitializeRandom()
 		{
-			int round1LinksNum = Math.Max((int)(rand.NextDouble() * NumInputs - 2), 1);
+			int round1LinksNum = Math.Max((int)(rand.NextDouble() * NumInputs), 1);
 			//int round1NeuronsNum = (int)(rand.NextDouble() * NumOutputs * 2) + 1;
 			//int round2LinksNum = (int)(rand.NextDouble() * NumInputs);
 
@@ -291,6 +403,7 @@ namespace NEAT
 					}
 					Connections.Add(fromToPair);
 					toNeuron.AddConnection(conn.ID, conn);
+					//Console.WriteLine("mutate link: " + isConsistent());
 				}
 			}
 		}
@@ -303,7 +416,7 @@ namespace NEAT
 				if (Neurons.TryGetValue(neuronId, out Neuron farNeuron) && farNeuron.Connections.Count > 0)
 				{
 					int connectionId = rand.Next(farNeuron.Connections.Count());
-					Neuron newNeuron = new Neuron(NumNeurons);
+					Neuron newNeuron = new Neuron(Neurons.Count);
 					Connection conn = farNeuron.Connections.Values.ElementAt(connectionId);
 					Tuple<int, int> nearToMidTuple = new Tuple<int, int>(conn.From.ID, newNeuron.ID);
 					Connection nearToMid;
@@ -319,17 +432,17 @@ namespace NEAT
 							InnovationNumbers.Add(nearToMidTuple, InnovationNumbers.Count());
 						}
 					}
-					Connection midtoFar;
+					Connection midToFar;
 					Tuple<int, int> midToFarTuple = new Tuple<int, int>(newNeuron.ID, farNeuron.ID);
 					lock (InnovationNumbers)
 					{
 						if (InnovationNumbers.TryGetValue(midToFarTuple, out int innoNumber2))
 						{
-							midtoFar = new Connection(innoNumber2, newNeuron, conn.Weight);
+							midToFar = new Connection(innoNumber2, newNeuron, conn.Weight);
 						}
 						else
 						{
-							midtoFar = new Connection(InnovationNumbers.Count(), newNeuron, conn.Weight);
+							midToFar = new Connection(InnovationNumbers.Count(), newNeuron, conn.Weight);
 							InnovationNumbers.Add(midToFarTuple, InnovationNumbers.Count());
 						}
 					}
@@ -341,8 +454,9 @@ namespace NEAT
 					Connections.Add(nearToMidTuple);
 					Connections.Add(midToFarTuple);
 
-					farNeuron.AddConnection(midtoFar.ID, midtoFar);
+					farNeuron.AddConnection(midToFar.ID, midToFar);
 					NumNeurons++;
+					//Console.WriteLine("Mutate Neuron: " + isConsistent());
 					return;
 				}
 			}
@@ -365,6 +479,34 @@ namespace NEAT
 					}
 				}
 				return sb.ToString();
+			}
+		}
+
+		public bool isConsistent()
+		{
+			try
+			{
+				foreach (Tuple<int, int> connTuple in Connections)
+				{
+					bool match = false;
+					foreach (Neuron neuron in Neurons.Values)
+					{
+						foreach (Connection conn in neuron.Connections.Values)
+						{
+							if (connTuple.Equals(new Tuple<int, int>(conn.From.ID, neuron.ID)))
+							{
+								match = true;
+							}
+						}
+					}
+					if (!match) {
+						return false;
+					}
+				}
+				return true;
+			}
+			catch (NullReferenceException) {
+				return false;
 			}
 		}
 
@@ -428,10 +570,11 @@ namespace NEAT
 				MutateLink();
 			}
 
-			if (NeuronMutationChance < .03)
+			if (NeuronMutationChance < .05)
 			{
 				MutateNeuron();
 			}
+			//Console.WriteLine("Random Mutation: "+isConsistent());
 		}
 
 		private void MutateConnections(Neuron neuron)
@@ -494,6 +637,8 @@ namespace NEAT
 				childNetwork.Neurons.TryGetValue(conn.Item2, out Neuron toNeuron);
 				lock (InnovationNumbers)
 				{
+					//Console.WriteLine("fit Consistency: " + fit.isConsistent());
+					//Console.WriteLine("less fit Consistency: " + lessFit.isConsistent());
 					InnovationNumbers.TryGetValue(conn, out int innoNumber);
 					if (lessFit.Connections.Contains(conn))
 					{
@@ -501,23 +646,26 @@ namespace NEAT
 						{
 							fit.Neurons.TryGetValue(conn.Item2, out Neuron parentNeuron);
 							parentNeuron.Connections.TryGetValue(innoNumber, out Connection selectedCon);
-							toNeuron.AddConnection(innoNumber, selectedCon);
+							toNeuron.AddConnection(innoNumber, new Connection(selectedCon.ID, selectedCon.From, selectedCon.Weight));
 						}
 						else
 						{
 							lessFit.Neurons.TryGetValue(conn.Item2, out Neuron parentNeuron);
 							parentNeuron.Connections.TryGetValue(innoNumber, out Connection selectedCon);
-							toNeuron.AddConnection(innoNumber, selectedCon);
+							toNeuron.AddConnection(innoNumber, new Connection(selectedCon.ID, selectedCon.From, selectedCon.Weight));
 						}
 					}
 					else
 					{
 						fit.Neurons.TryGetValue(conn.Item2, out Neuron parentNeuron);
 						parentNeuron.Connections.TryGetValue(innoNumber, out Connection selectedCon);
-						toNeuron.Connections.Add(innoNumber, selectedCon);
+						toNeuron.AddConnection(innoNumber, new Connection(selectedCon.ID, selectedCon.From, selectedCon.Weight));
 					}
 				}
 			}
+			childNetwork.NumNeurons = childNetwork.Neurons.Count;
+			childNetwork.Connections = new List<Tuple<int, int>>(fit.Connections);
+			//Console.WriteLine("Crossover: " + childNetwork.isConsistent());
 			return childNetwork;
 		}
 
