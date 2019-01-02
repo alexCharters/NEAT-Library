@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading;
@@ -50,11 +51,11 @@ namespace NEAT
 			}
 		}
 
-		public bool isConsistent()
+		public bool IsConsistent()
 		{
 			bool consistent = true;
 			foreach (NeuralNetwork NN in Networks) {
-				if (!NN.isConsistent()) {
+				if (!NN.IsConsistent()) {
 					consistent = false;
 				}
 			}
@@ -223,6 +224,7 @@ namespace NEAT
 					NeuralNetwork NN2 = species.networks.ElementAt(rand.Next(species.networks.Count));
 					NeuralNetwork Child = NeuralNetwork.Crossover(NN1, NN2, innovationNumbers);
 					Child.RandomMutation();
+					//Child.DisplayOutputConnections();
 					childrenNetworks.Add(Child);
 					//Console.WriteLine("Pop Consistency: " + isConsistent());
 					//Console.WriteLine();
@@ -243,7 +245,7 @@ namespace NEAT
 				NeuralNetwork randNN2 = randSpecies.networks[rand.Next(randSpecies.networks.Count)];
 				NeuralNetwork child = NeuralNetwork.Crossover(randNN1, randNN2, innovationNumbers);
 				child.RandomMutation();
-
+				//child.DisplayOutputConnections();
 				childrenNetworks.Add(child);
 			}
 
@@ -327,14 +329,14 @@ namespace NEAT
 
 		public void InitializeRandom()
 		{
-			int round1LinksNum = Math.Max((int)(rand.NextDouble() * NumInputs), 1);
-			//int round1NeuronsNum = (int)(rand.NextDouble() * NumOutputs * 2) + 1;
-			//int round2LinksNum = (int)(rand.NextDouble() * NumInputs);
+			//int round1LinksNum = NumInputs * NumOutputs;
+			////int round1NeuronsNum = (int)(rand.NextDouble() * NumOutputs * 2) + 1;
+			////int round2LinksNum = (int)(rand.NextDouble() * NumInputs);
 
-			for (int i = 0; i < round1LinksNum; i++)
-			{
-				MutateLink();
-			}
+			//for (int i = 0; i < round1LinksNum; i++)
+			//{
+			//	MutateLink();
+			//}
 			//for (int i = 0; i < round1NeuronsNum; i++)
 			//{
 			//	MutateNeuron();
@@ -343,6 +345,33 @@ namespace NEAT
 			//{
 			//	MutateLink();
 			//}
+
+			for (int i = NumInputs; i < NumInputs+NumOutputs; i++) {
+				Neurons.TryGetValue(i, out Neuron outputNeuron);
+				for (int j = 0; j < NumInputs; j++) {
+					Neurons.TryGetValue(j, out Neuron inputNeuron);
+					Tuple<int, int> fromToPair= new Tuple<int, int>(inputNeuron.ID, outputNeuron.ID);
+					Connection conn;
+					if (InnovationNumbers.ContainsKey(fromToPair))
+					{
+						lock (InnovationNumbers)
+						{
+							InnovationNumbers.TryGetValue(fromToPair, out int innoNumber);
+							conn = new Connection(innoNumber, inputNeuron, rand.NextDouble() * 4 - 2);
+						}
+					}
+					else
+					{
+						lock (InnovationNumbers)
+						{
+							conn = new Connection(InnovationNumbers.Count(), inputNeuron, rand.NextDouble() * 4 - 2);
+							InnovationNumbers.Add(new Tuple<int, int>(inputNeuron.ID, outputNeuron.ID), InnovationNumbers.Count());
+						}
+					}
+					Connections.Add(fromToPair);
+					outputNeuron.AddConnection(conn.ID, conn);
+				}
+			}
 		}
 
 		public Dictionary<string, double> Evaluate(IEnumerable<double> inputs)
@@ -361,22 +390,39 @@ namespace NEAT
 			return outputs;
 		}
 
+		public void DisplayOutputConnections()
+		{
+			for (int i = NumInputs; i < NumInputs+NumOutputs; i++) {
+				Console.WriteLine(Neurons.ElementAt(i).Value.Connections.Count);
+			}
+		}
+
 		public void MutateLink()
 		{
 			int from;
 			int to;
 
+			Stopwatch sw = new Stopwatch();
+			sw.Start();
+
 			do
 			{
+				rand = new Random(Guid.NewGuid().GetHashCode());
 				do
 				{
+					rand = new Random(Guid.NewGuid().GetHashCode());
 					from = rand.Next(Neurons.Count());
 				} while (from > NumInputs - 1 && from < NumInputs + NumOutputs);
 
 				do
 				{
-					to = rand.Next(Neurons.Count());
-				} while (to == from || to < NumInputs || (to > NumInputs + NumOutputs && to < from));
+					rand = new Random(Guid.NewGuid().GetHashCode());
+					to = rand.Next(NumInputs, Neurons.Count());
+				} while (to == from || to < NumInputs || (to < from && to >= NumInputs+NumOutputs));
+				if (sw.ElapsedMilliseconds > 50)
+				{
+					return;
+				}
 			} while (Connections.Contains(new Tuple<int, int>(from, to)));
 
 			if (Neurons.TryGetValue(to, out Neuron toNeuron))
@@ -482,7 +528,7 @@ namespace NEAT
 			}
 		}
 
-		public bool isConsistent()
+		public bool IsConsistent()
 		{
 			try
 			{
@@ -565,12 +611,12 @@ namespace NEAT
 				}
 			}
 
-			if (connectionMutationChance < .05)
+			if (connectionMutationChance < .3)
 			{
 				MutateLink();
 			}
 
-			if (NeuronMutationChance < .05)
+			if (NeuronMutationChance < .03)
 			{
 				MutateNeuron();
 			}

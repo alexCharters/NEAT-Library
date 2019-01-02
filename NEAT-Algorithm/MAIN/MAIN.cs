@@ -47,15 +47,21 @@ namespace MAIN
 
 			Population pop = new Population(4, new List<string>() { "Iris-setosa", "Iris-versicolor", "Iris-virginica" }, 40, FitnessFunction);
 
+			int runCount = 0;
 			while (true)
 			{
 				pop.Run();
+				if (runCount % 25 == 0)
+				{
+					Console.WriteLine(pop.Networks[rand.Next(40)].GenerateDOT());
+				}
 				pop.Select();
 
 				Console.WriteLine();
-				Console.WriteLine("Avg. Fitness: "+pop.AvgPopFitness);
+				Console.WriteLine("Avg. Fitness: " + pop.AvgPopFitness);
 				Console.WriteLine("best Fitness: " + pop.BestNetwork.Fitness);
 				Console.WriteLine();
+				runCount++;
 			}
 
 			//NeuralNetwork NN = new NeuralNetwork(inputs, outputs, new Dictionary<int, Tuple<int, int>>());
