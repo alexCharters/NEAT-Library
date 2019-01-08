@@ -14,7 +14,7 @@ namespace NEAT
 		public delegate double analysisFunction(NeuralNetwork NN);
 		private readonly analysisFunction run;
 		public List<NeuralNetwork> Networks { get; private set; }
-		public double SpeciatingThreshold = 1;
+		public double SpeciatingThreshold = .3;
 		public double killRate = .5;
 		public List<Species> speciesList;
 		public double AvgPopFitness { get; private set; }
@@ -133,7 +133,7 @@ namespace NEAT
 					double fitness = run(NN);
 					totalfitness += fitness;
 					fitnesses.Add(count, fitness);
-					//Console.WriteLine(i + " -> " + fitness);
+					//Console.WriteLine(count + " -> " + fitness);
 					count++;
 				}
 			}
@@ -141,6 +141,7 @@ namespace NEAT
 
 
 			AvgPopFitness = totalfitness / Networks.Count;
+			BestNetwork = null;
 
 			for (int i = 0; i < Networks.Count(); i++)
 			{
@@ -236,7 +237,13 @@ namespace NEAT
 			//Console.WriteLine("Pop Consistency: " + isConsistent());
 			//Console.WriteLine();
 
-			int numRandomBreed = Networks.Count - childrenNetworks.Count;
+			Networks.Sort((NN1, NN2) => NN2.Fitness.CompareTo(NN1.Fitness));
+			for (int i = 0; i < 5; i++)
+			{
+				childrenNetworks.Add(Networks.ElementAt(i));
+			}
+
+				int numRandomBreed = Networks.Count - childrenNetworks.Count;
 			for (int i = 0; i < numRandomBreed; i++)
 			{
 				Species randSpecies = speciesList[rand.Next(speciesList.Count)];
@@ -254,7 +261,7 @@ namespace NEAT
 			//Console.WriteLine("Pop Consistency: " + isConsistent());
 			//Console.WriteLine();
 
-			Networks = childrenNetworks;
+			Networks = new List<NeuralNetwork>(childrenNetworks);
 
 			//Console.WriteLine("total child networks after selection: " + childrenNetworks.Count);
 			//Console.WriteLine("Pop Consistency: " + isConsistent());
@@ -397,6 +404,21 @@ namespace NEAT
 			}
 		}
 
+		//public bool hasDisabled()
+		//{
+		//	foreach (Neuron neuron in Neurons.Values)
+		//	{
+		//		foreach (Connection conn in neuron.Connections.Values)
+		//		{
+		//			if (!conn.Enabled)
+		//			{
+		//				return true;
+		//			}
+		//		}
+		//	}
+		//	return false;
+		//}
+
 		public void MutateLink()
 		{
 			int from;
@@ -521,7 +543,14 @@ namespace NEAT
 				{
 					foreach (Connection conn in neuron.Connections.Values)
 					{
-						sb.Append("(" + conn.From.ID + " -> " + neuron.ID + ", w=" + conn.Weight + ", inno=" + conn.ID + ")\n");
+						if (conn.Enabled)
+						{
+							sb.Append("(" + conn.From.ID + " -> " + neuron.ID + ", w=" + conn.Weight + ", inno=" + conn.ID + " enabled)\n");
+						}
+						else
+						{
+							sb.Append("(" + conn.From.ID + " -> " + neuron.ID + ", w=" + conn.Weight + ", inno=" + conn.ID + " disabled)\n");
+						}
 					}
 				}
 				return sb.ToString();
@@ -611,7 +640,7 @@ namespace NEAT
 				}
 			}
 
-			if (connectionMutationChance < .3)
+			if (connectionMutationChance < .05)
 			{
 				MutateLink();
 			}
@@ -633,14 +662,16 @@ namespace NEAT
 			{
 				foreach (Connection conn in neuron.Connections.Values)
 				{
-					double perturbedOrRandom = rand.NextDouble();
-					if (perturbedOrRandom < .9)
-					{
-						conn.MutateWeightShift();
-					}
-					else
+					double perturbedChance = rand.NextDouble();
+					double randomChance = rand.NextDouble();
+					if (randomChance < .1)
 					{
 						conn.MutateWeightRandom();
+						
+					}
+					if (perturbedChance < .9)
+					{
+						conn.MutateWeightShift();
 					}
 
 					MutateConnections(conn.From);
@@ -681,6 +712,7 @@ namespace NEAT
 					childNetwork.Neurons.Add(conn.Item2, new Neuron(conn.Item2));
 				}
 				childNetwork.Neurons.TryGetValue(conn.Item2, out Neuron toNeuron);
+				childNetwork.Neurons.TryGetValue(conn.Item1, out Neuron fromNeuron);
 				lock (InnovationNumbers)
 				{
 					//Console.WriteLine("fit Consistency: " + fit.isConsistent());
@@ -688,24 +720,41 @@ namespace NEAT
 					InnovationNumbers.TryGetValue(conn, out int innoNumber);
 					if (lessFit.Connections.Contains(conn))
 					{
+						fit.Neurons.TryGetValue(conn.Item2, out Neuron fitParentNeuron);
+						fitParentNeuron.Connections.TryGetValue(innoNumber, out Connection fitSelectedCon);
+						lessFit.Neurons.TryGetValue(conn.Item2, out Neuron lessFitParentNeuron);
+						lessFitParentNeuron.Connections.TryGetValue(innoNumber, out Connection lessFitSelectedCon);
 						if (rand.NextDouble() >= .5)
 						{
-							fit.Neurons.TryGetValue(conn.Item2, out Neuron parentNeuron);
-							parentNeuron.Connections.TryGetValue(innoNumber, out Connection selectedCon);
-							toNeuron.AddConnection(innoNumber, new Connection(selectedCon.ID, selectedCon.From, selectedCon.Weight));
+							Connection newConn = new Connection(fitSelectedCon.ID, fromNeuron, fitSelectedCon.Weight);
+							if (!fitSelectedCon.Enabled || !lessFitSelectedCon.Enabled)
+							{
+								double disableChance = rand.NextDouble();
+								if (disableChance < .75) {
+									newConn.EnableDisable();
+								}
+							}
+							toNeuron.AddConnection(innoNumber, newConn);
 						}
 						else
 						{
-							lessFit.Neurons.TryGetValue(conn.Item2, out Neuron parentNeuron);
-							parentNeuron.Connections.TryGetValue(innoNumber, out Connection selectedCon);
-							toNeuron.AddConnection(innoNumber, new Connection(selectedCon.ID, selectedCon.From, selectedCon.Weight));
+							Connection newConn = new Connection(lessFitSelectedCon.ID, fromNeuron, lessFitSelectedCon.Weight);
+							if (!fitSelectedCon.Enabled || !lessFitSelectedCon.Enabled)
+							{
+								double disableChance = rand.NextDouble();
+								if (disableChance < .75)
+								{
+									newConn.EnableDisable();
+								}
+							}
+							toNeuron.AddConnection(innoNumber, newConn);
 						}
 					}
 					else
 					{
 						fit.Neurons.TryGetValue(conn.Item2, out Neuron parentNeuron);
 						parentNeuron.Connections.TryGetValue(innoNumber, out Connection selectedCon);
-						toNeuron.AddConnection(innoNumber, new Connection(selectedCon.ID, selectedCon.From, selectedCon.Weight));
+						toNeuron.AddConnection(innoNumber, new Connection(selectedCon.ID, fromNeuron, selectedCon.Weight));
 					}
 				}
 			}
@@ -815,7 +864,9 @@ namespace NEAT
 				double value = 0;
 				foreach (Connection conn in Connections.Values)
 				{
-					value += conn.From.GetValue() * conn.Weight;
+					if (conn.Enabled) {
+						value += conn.From.GetValue() * conn.Weight;
+					}
 				}
 				return Sigmoid(value);
 			}
@@ -851,7 +902,7 @@ namespace NEAT
 
 		public void MutateWeightShift()
 		{
-			double shift = rand.NextDouble() - 0.5;
+			double shift = rand.NextDouble()*.1 - .05;
 			Weight += shift;
 		}
 

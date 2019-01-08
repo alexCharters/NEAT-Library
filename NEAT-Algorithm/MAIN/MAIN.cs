@@ -11,41 +11,43 @@ namespace MAIN
 		static List<Tuple<int, int, int>> outputs;
 		static void Main(string[] args)
 		{
-			using (StreamReader reader = new StreamReader("C:/Users/Alex/Desktop/iris.csv"))
-			{
-				inputsList = new List<List<double>>();
-				outputs = new List<Tuple<int, int, int>>();
-				reader.ReadLine();
-				int count = 0;
-				while (!reader.EndOfStream)
-				{
+			Population pop = new Population(2, new List<string>() { "out" }, 200, FitnessFunction);
 
-					var line = reader.ReadLine();
-					var values = line.Split(',');
+			//using (StreamReader reader = new StreamReader("C:/Users/Alex/Desktop/iris-short.csv"))
+			//{
+			//	inputsList = new List<List<double>>();
+			//	outputs = new List<Tuple<int, int, int>>();
+			//	reader.ReadLine();
+			//	int count = 0;
+			//	while (!reader.EndOfStream)
+			//	{
 
-					inputsList.Add(new List<double>());
-					for (int i = 1; i < 5; i++)
-					{
-						inputsList[count].Add(double.Parse(values[i]));
-					}
+			//		var line = reader.ReadLine();
+			//		var values = line.Split(',');
 
-					if (values[5] == "Iris-setosa") {
-						outputs.Add(new Tuple<int, int, int>(1,0,0));
-					}
-					if (values[5] == "Iris-versicolor")
-					{
-						outputs.Add(new Tuple<int, int, int>(0, 1, 0));
-					}
-					if (values[5] == "Iris-setosa")
-					{
-						outputs.Add(new Tuple<int, int, int>(0, 0, 1));
-					}
+			//		inputsList.Add(new List<double>());
+			//		for (int i = 1; i < 5; i++)
+			//		{
+			//			inputsList[count].Add(double.Parse(values[i]));
+			//		}
 
-					count++;
-				}
-			}
+			//		if (values[5] == "Iris-setosa") {
+			//			outputs.Add(new Tuple<int, int, int>(1,0,0));
+			//		}
+			//		if (values[5] == "Iris-versicolor")
+			//		{
+			//			outputs.Add(new Tuple<int, int, int>(0, 1, 0));
+			//		}
+			//		if (values[5] == "Iris-setosa")
+			//		{
+			//			outputs.Add(new Tuple<int, int, int>(0, 0, 1));
+			//		}
 
-			Population pop = new Population(4, new List<string>() { "Iris-setosa", "Iris-versicolor", "Iris-virginica" }, 40, FitnessFunction);
+			//		count++;
+			//	}
+			//}
+
+			//Population pop = new Population(4, new List<string>() { "Iris-setosa", "Iris-versicolor", "Iris-virginica" }, 500, FitnessFunction);
 
 			int runCount = 0;
 			while (true)
@@ -53,16 +55,22 @@ namespace MAIN
 				pop.Run();
 				if (runCount % 25 == 0)
 				{
-					Console.WriteLine(pop.Networks[rand.Next(40)].GenerateDOT());
+					Console.WriteLine(pop.Networks.ToArray()[rand.Next(200)].GenerateDOT());
+					Console.WriteLine(pop.BestNetwork.GenerateDOT());
 				}
-				pop.Select();
-
 				Console.WriteLine();
 				Console.WriteLine("Avg. Fitness: " + pop.AvgPopFitness);
 				Console.WriteLine("best Fitness: " + pop.BestNetwork.Fitness);
 				Console.WriteLine();
+
+				pop.Select();
 				runCount++;
 			}
+
+
+
+
+
 
 			//NeuralNetwork NN = new NeuralNetwork(inputs, outputs, new Dictionary<int, Tuple<int, int>>());
 			//for (int i = 0; i < 1000; i++)
@@ -160,38 +168,62 @@ namespace MAIN
 		public static Random rand = new Random();
 		public static double FitnessFunction(NeuralNetwork NN)
 		{
-			double numCorrect = 0;
-			for (int i = 0; i < inputsList.Count; i++)
-			{
-				List<double> inputs = inputsList[i];
-				Dictionary<string, double> results = NN.Evaluate(inputs);
-				results.TryGetValue("Iris-setosa", out double setosa);
-				results.TryGetValue("Iris-versicolor", out double versicolor);
-				results.TryGetValue("Iris-virginica", out double virginica);
-				if (outputs[i].Equals(new Tuple<int, int, int>(1, 0, 0)))
-				{
-					numCorrect += Math.Abs(1 - setosa);
-					numCorrect += Math.Abs(0 - versicolor);
-					numCorrect += Math.Abs(0 - virginica);
-				}
-				else if (outputs[i].Equals(new Tuple<int, int, int>(0, 1, 0)))
-				{
-					numCorrect += Math.Abs(0 - setosa);
-					numCorrect += Math.Abs(1 - versicolor);
-					numCorrect += Math.Abs(0 - virginica);
-				}
-				else if (outputs[i].Equals(new Tuple<int, int, int>(0, 0, 1)))
-				{
-					numCorrect += Math.Abs(0 - setosa);
-					numCorrect += Math.Abs(0 - versicolor);
-					numCorrect += Math.Abs(1 - virginica);
-				}
-				else
-				{
-					throw new ArgumentException("dont use .Equals to compare doubles");
-				}
-			}
-			return 3 - (numCorrect/outputs.Count);
+			double fitness = 0;
+
+			Dictionary<string, double> results = NN.Evaluate(new List<double>() { 0, 0 });
+			results.TryGetValue("out", out double result1);
+
+			fitness += 1 - result1;
+
+			results = NN.Evaluate(new List<double>() { 0, 1 });
+			results.TryGetValue("out", out double result2);
+
+			fitness += result2;
+
+			results = NN.Evaluate(new List<double>() { 1, 0 });
+			results.TryGetValue("out", out double result3);
+
+			fitness += result3;
+
+			results = NN.Evaluate(new List<double>() { 1, 1 });
+			results.TryGetValue("out", out double result4);
+
+			fitness += 1 - result4;
+
+			return fitness*fitness;
+
+			//double amountIncorrect = 0;
+			//for (int i = 0; i < inputsList.Count; i++)
+			//{
+			//	List<double> inputs = inputsList[i];
+			//	Dictionary<string, double> results = NN.Evaluate(inputs);
+			//	results.TryGetValue("Iris-setosa", out double setosa);
+			//	results.TryGetValue("Iris-versicolor", out double versicolor);
+			//	results.TryGetValue("Iris-virginica", out double virginica);
+			//	if (outputs[i].Equals(new Tuple<int, int, int>(1, 0, 0)))
+			//	{
+			//		amountIncorrect += Math.Abs(1 - setosa);
+			//		amountIncorrect += Math.Abs(0 - versicolor);
+			//		amountIncorrect += Math.Abs(0 - virginica);
+			//	}
+			//	else if (outputs[i].Equals(new Tuple<int, int, int>(0, 1, 0)))
+			//	{
+			//		amountIncorrect += Math.Abs(0 - setosa);
+			//		amountIncorrect += Math.Abs(1 - versicolor);
+			//		amountIncorrect += Math.Abs(0 - virginica);
+			//	}
+			//	else if (outputs[i].Equals(new Tuple<int, int, int>(0, 0, 1)))
+			//	{
+			//		amountIncorrect += Math.Abs(0 - setosa);
+			//		amountIncorrect += Math.Abs(0 - versicolor);
+			//		amountIncorrect += Math.Abs(1 - virginica);
+			//	}
+			//	else
+			//	{
+			//		throw new ArgumentException("dont use .Equals to compare doubles");
+			//	}
+			//}
+			//return 3 - (amountIncorrect/outputs.Count);
 		}
 	}
 }
