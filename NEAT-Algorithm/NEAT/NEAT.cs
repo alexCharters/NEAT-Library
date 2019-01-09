@@ -14,8 +14,8 @@ namespace NEAT
 		public delegate double analysisFunction(NeuralNetwork NN);
 		private readonly analysisFunction run;
 		public List<NeuralNetwork> Networks { get; private set; }
-		public double SpeciatingThreshold = .3;
-		public double killRate = .5;
+		public double SpeciatingThreshold = 3;
+		public double killRate = .9;
 		public List<Species> speciesList;
 		public double AvgPopFitness { get; private set; }
 		public int Size { get; private set; }
@@ -67,7 +67,7 @@ namespace NEAT
 			Dictionary<int, double> fitnesses = new Dictionary<int, double>();
 			double totalfitness = 0;
 
-			bool threaded = false;
+			bool threaded = true;
 			if (threaded)
 			{
 				Thread thread1 = new Thread(() =>
@@ -77,7 +77,10 @@ namespace NEAT
 						NeuralNetwork NN = Networks.ElementAt(i);
 						double fitness = run(NN);
 						totalfitness += fitness;
-						fitnesses.Add(i, fitness);
+						lock (fitnesses)
+						{
+							fitnesses.Add(i, fitness);
+						}
 						//Console.WriteLine(i + " -> " + fitness);
 					}
 				});
@@ -88,7 +91,10 @@ namespace NEAT
 						NeuralNetwork NN = Networks.ElementAt(i);
 						double fitness = run(NN);
 						totalfitness += fitness;
-						fitnesses.Add(i, fitness);
+						lock (fitnesses)
+						{
+							fitnesses.Add(i, fitness);
+						}
 						//Console.WriteLine(i + " -> " + fitness);
 					}
 				});
@@ -99,7 +105,10 @@ namespace NEAT
 						NeuralNetwork NN = Networks.ElementAt(i);
 						double fitness = run(NN);
 						totalfitness += fitness;
-						fitnesses.Add(i, fitness);
+						lock (fitnesses)
+						{
+							fitnesses.Add(i, fitness);
+						}
 						//Console.WriteLine(i + " -> " + fitness);
 					}
 				});
@@ -110,7 +119,10 @@ namespace NEAT
 						NeuralNetwork NN = Networks.ElementAt(i);
 						double fitness = run(NN);
 						totalfitness += fitness;
-						fitnesses.Add(i, fitness);
+						lock (fitnesses)
+						{
+							fitnesses.Add(i, fitness);
+						}
 						//Console.WriteLine(i + " -> " + fitness);
 					}
 				});
@@ -298,7 +310,7 @@ namespace NEAT
 			Neurons = new Dictionary<int, Neuron>();
 			Connections = new List<Tuple<int, int>>();
 			InnovationNumbers = _innovationNumbers;
-			NumInputs = inputs.Count();
+			NumInputs = inputs.Count()+1;
 			NumOutputs = outputNames.Count();
 			NumNeurons = NumInputs + NumOutputs;
 			Fitness = double.MinValue;
@@ -306,6 +318,8 @@ namespace NEAT
 			{
 				Neurons.Add(id, new Neuron(id, inputs.ElementAt(id)));
 			}
+
+			Neurons[0].Value = 1;
 
 			for (int id = 0; id < NumOutputs; id++)
 			{
@@ -319,7 +333,7 @@ namespace NEAT
 			Neurons = new Dictionary<int, Neuron>();
 			Connections = new List<Tuple<int, int>>();
 			InnovationNumbers = _innovationNumbers;
-			NumInputs = numInputs;
+			NumInputs = numInputs+1;
 			NumOutputs = outputNames.Count();
 			NumNeurons = NumInputs + NumOutputs;
 			Fitness = double.MinValue;
@@ -327,6 +341,8 @@ namespace NEAT
 			{
 				Neurons.Add(id, new Neuron(id));
 			}
+
+			Neurons[0].Value = 1;
 
 			for (int id = 0; id < NumOutputs; id++)
 			{
@@ -355,7 +371,7 @@ namespace NEAT
 
 			for (int i = NumInputs; i < NumInputs+NumOutputs; i++) {
 				Neurons.TryGetValue(i, out Neuron outputNeuron);
-				for (int j = 0; j < NumInputs; j++) {
+				for (int j = 1; j < NumInputs; j++) {
 					Neurons.TryGetValue(j, out Neuron inputNeuron);
 					Tuple<int, int> fromToPair= new Tuple<int, int>(inputNeuron.ID, outputNeuron.ID);
 					Connection conn;
@@ -383,10 +399,10 @@ namespace NEAT
 
 		public Dictionary<string, double> Evaluate(IEnumerable<double> inputs)
 		{
-			for (int i = 0; i < NumInputs; i++)
+			for (int i = 1; i < NumInputs; i++)
 			{
 				Neurons.TryGetValue(i, out Neuron inputNeuron);
-				inputNeuron.Value = inputs.ElementAt(i);
+				inputNeuron.Value = inputs.ElementAt(i-1);
 			}
 			Dictionary<string, double> outputs = new Dictionary<string, double>();
 			for (int i = NumInputs; i < NumInputs + NumOutputs; i++)
@@ -441,7 +457,7 @@ namespace NEAT
 					rand = new Random(Guid.NewGuid().GetHashCode());
 					to = rand.Next(NumInputs, Neurons.Count());
 				} while (to == from || to < NumInputs || (to < from && to >= NumInputs+NumOutputs));
-				if (sw.ElapsedMilliseconds > 50)
+				if (sw.ElapsedMilliseconds > 10)
 				{
 					return;
 				}
@@ -483,9 +499,15 @@ namespace NEAT
 				int neuronId = rand.Next(NumInputs, NumInputs + NumOutputs);
 				if (Neurons.TryGetValue(neuronId, out Neuron farNeuron) && farNeuron.Connections.Count > 0)
 				{
-					int connectionId = rand.Next(farNeuron.Connections.Count());
+					Connection conn;
+					int connectionId;
+					do {
+						connectionId = rand.Next(farNeuron.Connections.Count());
+						conn = farNeuron.Connections.Values.ElementAt(connectionId);
+					} while (conn.From.ID == 0);
+
 					Neuron newNeuron = new Neuron(Neurons.Count);
-					Connection conn = farNeuron.Connections.Values.ElementAt(connectionId);
+					
 					Tuple<int, int> nearToMidTuple = new Tuple<int, int>(conn.From.ID, newNeuron.ID);
 					Connection nearToMid;
 					lock (InnovationNumbers)
@@ -589,7 +611,7 @@ namespace NEAT
 		{
 			StringBuilder sb = new StringBuilder("digraph NeuralNetwork{\n");
 			sb.Append("subgraph cluster_level1{\nlabel = \"Inputs\";\n");
-			for (int i = 0; i < NumInputs; i++)
+			for (int i = 1; i < NumInputs; i++)
 			{
 				Neuron neur = Neurons.Values.ElementAt(i);
 				sb.Append(neur.ID + ";\n");
@@ -640,12 +662,12 @@ namespace NEAT
 				}
 			}
 
-			if (connectionMutationChance < .05)
+			if (connectionMutationChance < .1)
 			{
 				MutateLink();
 			}
 
-			if (NeuronMutationChance < .03)
+			if (NeuronMutationChance < .06)
 			{
 				MutateNeuron();
 			}
@@ -686,7 +708,7 @@ namespace NEAT
 				throw new ArgumentException("One of the neural networks did not have a fitness assigned to it.");
 			}
 			Random rand = new Random(Guid.NewGuid().GetHashCode());
-			NeuralNetwork childNetwork = new NeuralNetwork(NN1.NumInputs, NN1.outputNames, NN1.InnovationNumbers);
+			NeuralNetwork childNetwork = new NeuralNetwork(NN1.NumInputs-1, NN1.outputNames, NN1.InnovationNumbers);
 
 			NeuralNetwork fit;
 			NeuralNetwork lessFit;
@@ -902,7 +924,7 @@ namespace NEAT
 
 		public void MutateWeightShift()
 		{
-			double shift = rand.NextDouble()*.1 - .05;
+			double shift = rand.NextDouble()*2 - 1;
 			Weight += shift;
 		}
 

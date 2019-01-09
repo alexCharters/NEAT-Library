@@ -11,9 +11,9 @@ namespace MAIN
 		static List<Tuple<int, int, int>> outputs;
 		static void Main(string[] args)
 		{
-			Population pop = new Population(2, new List<string>() { "out" }, 200, FitnessFunction);
+			Population pop = new Population(2, new List<string>() { "out" }, 500, FitnessFunction);
 
-			//using (StreamReader reader = new StreamReader("C:/Users/Alex/Desktop/iris-short.csv"))
+			//using (StreamReader reader = new StreamReader("C:/Users/Alex/Desktop/Iris.csv"))
 			//{
 			//	inputsList = new List<List<double>>();
 			//	outputs = new List<Tuple<int, int, int>>();
@@ -31,8 +31,9 @@ namespace MAIN
 			//			inputsList[count].Add(double.Parse(values[i]));
 			//		}
 
-			//		if (values[5] == "Iris-setosa") {
-			//			outputs.Add(new Tuple<int, int, int>(1,0,0));
+			//		if (values[5] == "Iris-setosa")
+			//		{
+			//			outputs.Add(new Tuple<int, int, int>(1, 0, 0));
 			//		}
 			//		if (values[5] == "Iris-versicolor")
 			//		{
@@ -47,7 +48,7 @@ namespace MAIN
 			//	}
 			//}
 
-			//Population pop = new Population(4, new List<string>() { "Iris-setosa", "Iris-versicolor", "Iris-virginica" }, 500, FitnessFunction);
+			//Population pop = new Population(4, new List<string>() { "Iris-setosa", "Iris-versicolor", "Iris-virginica" }, 300, FitnessFunctionWithoutSize);
 
 			int runCount = 0;
 			while (true)
@@ -55,8 +56,10 @@ namespace MAIN
 				pop.Run();
 				if (runCount % 25 == 0)
 				{
-					Console.WriteLine(pop.Networks.ToArray()[rand.Next(200)].GenerateDOT());
+					Console.WriteLine(pop.Networks.ToArray()[rand.Next(500)].GenerateDOT());
 					Console.WriteLine(pop.BestNetwork.GenerateDOT());
+
+					//Console.WriteLine("BEST FITNESS: " + FitnessFunctionWithoutSize(pop.BestNetwork));
 				}
 				Console.WriteLine();
 				Console.WriteLine("Avg. Fitness: " + pop.AvgPopFitness);
@@ -173,24 +176,24 @@ namespace MAIN
 			Dictionary<string, double> results = NN.Evaluate(new List<double>() { 0, 0 });
 			results.TryGetValue("out", out double result1);
 
-			fitness += 1 - result1;
+			fitness += Math.Abs(0 - result1);
 
 			results = NN.Evaluate(new List<double>() { 0, 1 });
 			results.TryGetValue("out", out double result2);
 
-			fitness += result2;
+			fitness += Math.Abs(1 - result2);
 
 			results = NN.Evaluate(new List<double>() { 1, 0 });
 			results.TryGetValue("out", out double result3);
 
-			fitness += result3;
+			fitness += Math.Abs(1 - result3);
 
 			results = NN.Evaluate(new List<double>() { 1, 1 });
 			results.TryGetValue("out", out double result4);
 
-			fitness += 1 - result4;
+			fitness += Math.Abs(0 - result4);
 
-			return fitness*fitness;
+			return 4 - fitness;
 
 			//double amountIncorrect = 0;
 			//for (int i = 0; i < inputsList.Count; i++)
@@ -223,7 +226,43 @@ namespace MAIN
 			//		throw new ArgumentException("dont use .Equals to compare doubles");
 			//	}
 			//}
-			//return 3 - (amountIncorrect/outputs.Count);
+			//return 3 - (amountIncorrect / outputs.Count)-NN.Size()/100.0;
+		}
+
+		public static double FitnessFunctionWithoutSize(NeuralNetwork NN)
+		{
+			double amountIncorrect = 0;
+			for (int i = 0; i < inputsList.Count; i++)
+			{
+				List<double> inputs = inputsList[i];
+				Dictionary<string, double> results = NN.Evaluate(inputs);
+				results.TryGetValue("Iris-setosa", out double setosa);
+				results.TryGetValue("Iris-versicolor", out double versicolor);
+				results.TryGetValue("Iris-virginica", out double virginica);
+				if (outputs[i].Equals(new Tuple<int, int, int>(1, 0, 0)))
+				{
+					amountIncorrect += Math.Abs(1 - setosa);
+					amountIncorrect += Math.Abs(0 - versicolor);
+					amountIncorrect += Math.Abs(0 - virginica);
+				}
+				else if (outputs[i].Equals(new Tuple<int, int, int>(0, 1, 0)))
+				{
+					amountIncorrect += Math.Abs(0 - setosa);
+					amountIncorrect += Math.Abs(1 - versicolor);
+					amountIncorrect += Math.Abs(0 - virginica);
+				}
+				else if (outputs[i].Equals(new Tuple<int, int, int>(0, 0, 1)))
+				{
+					amountIncorrect += Math.Abs(0 - setosa);
+					amountIncorrect += Math.Abs(0 - versicolor);
+					amountIncorrect += Math.Abs(1 - virginica);
+				}
+				else
+				{
+					throw new ArgumentException("dont use .Equals to compare doubles");
+				}
+			}
+			return 3 - (amountIncorrect / outputs.Count);
 		}
 	}
 }
