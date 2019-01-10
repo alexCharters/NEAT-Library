@@ -8,42 +8,39 @@ using System.Threading.Tasks;
 
 namespace NEAT
 {
+	/// <summary>
+	/// This class represents a population, a collection of neural networks. The Neural Networks can be repeatedly evaluated, selected, and reproduced to evolve specialized Neural Networks.
+	/// </summary>
 	public class Population
 	{
 		readonly Dictionary<Tuple<int, int>, int> innovationNumbers;
 		public delegate double analysisFunction(NeuralNetwork NN);
 		private readonly analysisFunction run;
 		public List<NeuralNetwork> Networks { get; private set; }
-		public double SpeciatingThreshold = 3;
-		public double killRate = .9;
 		public List<Species> speciesList;
 		public double AvgPopFitness { get; private set; }
 		public int Size { get; private set; }
 		public NeuralNetwork BestNetwork { get; private set; }
 
-		public Population(IEnumerable<double> inputs, IEnumerable<string> outputNames, int size, analysisFunction _run)
-		{
-			run = _run;
-			innovationNumbers = new Dictionary<Tuple<int, int>, int>();
-			Networks = new List<NeuralNetwork>();
-			speciesList = new List<Species>();
-			Size = size;
-			for (int i = 0; i < size; i++)
-			{
-				NeuralNetwork NN = new NeuralNetwork(inputs, outputNames, innovationNumbers);
-				NN.InitializeRandom();
-				Networks.Add(NN);
-			}
-		}
+		public bool threaded = true;
+		public double SpeciatingThreshold = 3;
+		public double killRate = .9;
 
-		public Population(int numInputs, IEnumerable<string> outputNames, int size, analysisFunction _run)
+		/// <summary>
+		/// Constructor for a population. Creates the first generation of Neural Networks.
+		/// </summary>
+		/// <param name="numInputs">The number of inputs each Network has.</param>
+		/// <param name="outputNames">An Enumerable of the names of each output.</param>
+		/// <param name="PopulationSize">The size of the generated populations</param>
+		/// <param name="_run">The Fitness Function.</param>
+		public Population(int numInputs, IEnumerable<string> outputNames, int PopulationSize, analysisFunction _run)
 		{
 			run = _run;
 			innovationNumbers = new Dictionary<Tuple<int, int>, int>();
 			Networks = new List<NeuralNetwork>();
 			speciesList = new List<Species>();
-			Size = size;
-			for (int i = 0; i < size; i++)
+			Size = PopulationSize;
+			for (int i = 0; i < PopulationSize; i++)
 			{
 				NeuralNetwork NN = new NeuralNetwork(numInputs, outputNames, innovationNumbers);
 				NN.InitializeRandom();
@@ -51,6 +48,10 @@ namespace NEAT
 			}
 		}
 
+		/// <summary>
+		/// Checks all Networks list of connections and ensure the phenotype reflects it.
+		/// </summary>
+		/// <returns>true if all networks are consistent</returns>
 		public bool IsConsistent()
 		{
 			bool consistent = true;
@@ -62,12 +63,14 @@ namespace NEAT
 			return consistent;
 		}
 
+		/// <summary>
+		/// Runs each Neural Network through the fitness function and assigns the fitnesses.
+		/// </summary>
 		public void Run()
 		{
 			Dictionary<int, double> fitnesses = new Dictionary<int, double>();
 			double totalfitness = 0;
 
-			bool threaded = true;
 			if (threaded)
 			{
 				Thread thread1 = new Thread(() =>
@@ -301,6 +304,14 @@ namespace NEAT
 		public Dictionary<Tuple<int, int>, int> InnovationNumbers { get; private set; }
 		public double Fitness { get; set; }
 		List<string> outputNames;
+
+		public double disjointCoef = 1.0;
+		public double excessCoef = 1.0;
+		public double avgWeightDiffCoef = 0.4;
+
+		public double connectionWeightsMutationChance = .8;
+		public double connectionMutationChance = .1;
+		public double NeuronMutationChance = .06);
 
 		Random rand = new Random(Guid.NewGuid().GetHashCode());
 
@@ -649,11 +660,11 @@ namespace NEAT
 
 		public void RandomMutation()
 		{
-			double connectionWeightsMutationChance = rand.NextDouble();
-			double connectionMutationChance = rand.NextDouble();
-			double NeuronMutationChance = rand.NextDouble();
+			double connectionWeightsMutation = rand.NextDouble();
+			double connectionMutation = rand.NextDouble();
+			double NeuronMutation = rand.NextDouble();
 
-			if (connectionWeightsMutationChance < .8)
+			if (connectionWeightsMutation < connectionWeightsMutationChance)
 			{
 				for (int outputNeuronIdx = NumInputs; outputNeuronIdx < NumInputs + NumOutputs; outputNeuronIdx++)
 				{
@@ -662,12 +673,12 @@ namespace NEAT
 				}
 			}
 
-			if (connectionMutationChance < .1)
+			if (connectionMutation < connectionMutationChance)
 			{
 				MutateLink();
 			}
 
-			if (NeuronMutationChance < .06)
+			if (NeuronMutation < NeuronMutationChance)
 			{
 				MutateNeuron();
 			}
@@ -789,9 +800,6 @@ namespace NEAT
 		public static double EvolutionaryDistance(NeuralNetwork NN1, NeuralNetwork NN2, Dictionary<Tuple<int, int>, int> InnovationNumbers)
 		{
 			int N = Math.Max(NN1.Size(), NN2.Size());
-			double disjointCoef = 1.0;
-			double excessCoef = 1.0;
-			double avgWeightDiffCoef = 0.4;
 
 			double avgWeightDiff = 0;
 			int numMatchingGenes = 0;
