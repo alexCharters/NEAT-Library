@@ -305,13 +305,13 @@ namespace NEAT
 		public double Fitness { get; set; }
 		List<string> outputNames;
 
-		public double disjointCoef = 1.0;
-		public double excessCoef = 1.0;
-		public double avgWeightDiffCoef = 0.4;
+		public static double disjointCoef = 1.0;
+		public static double excessCoef = 1.0;
+		public static double avgWeightDiffCoef = 0.4;
 
 		public double connectionWeightsMutationChance = .8;
 		public double connectionMutationChance = .1;
-		public double NeuronMutationChance = .06);
+		public double NeuronMutationChance = .06;
 
 		Random rand = new Random(Guid.NewGuid().GetHashCode());
 
