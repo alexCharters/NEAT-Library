@@ -9,24 +9,6 @@ namespace NEAT_Tests
 	public class UnitTest1
 	{
 		[TestMethod]
-		public void InnovationNumberTest()
-		{
-			Dictionary<Tuple<int, int>, int> innovationNumbers = new Dictionary<Tuple<int, int>, int>();
-			List<double> inputs = GetInputs();
-			List<string> outputs = GetOutputs();
-
-			NeuralNetwork NN1 = new NeuralNetwork(inputs, outputs, innovationNumbers);
-			NeuralNetwork NN2 = new NeuralNetwork(inputs, outputs, innovationNumbers);
-			for (int i = 0; i < 15; i++)
-			{
-				NN1.MutateLink();
-				NN2.MutateLink();
-			}
-			Console.WriteLine(NN1.ToString());
-			Console.WriteLine(NN2.ToString());
-		}
-
-		[TestMethod]
 		public void TupleHashsetContainsTest()
 		{
 			HashSet<Tuple<int, int>> hash = new HashSet<Tuple<int, int>>

@@ -53,7 +53,7 @@ namespace MAIN
 			int runCount = 0;
 			while (true)
 			{
-				pop.Run();
+				pop.Run(true);
 				if (runCount % 25 == 0)
 				{
 					Console.WriteLine(pop.Networks.ToArray()[rand.Next(500)].GenerateDOT());

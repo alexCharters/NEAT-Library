@@ -22,7 +22,7 @@ namespace NEAT
 		public int Size { get; private set; }
 		public NeuralNetwork BestNetwork { get; private set; }
 
-		public bool threaded = true;
+		public bool threaded = false;
 		public double SpeciatingThreshold = 3;
 		public double killRate = .9;
 
@@ -64,7 +64,8 @@ namespace NEAT
 		}
 
 		/// <summary>
-		/// Runs each Neural Network through the fitness function and assigns the fitnesses.
+		/// Runs each Neural Network of the population through the fitness function and assigns the fitnesses.
+		/// Overloaded for running on multiple threads. default is unthreaded.
 		/// </summary>
 		public void Run()
 		{
@@ -153,8 +154,6 @@ namespace NEAT
 				}
 			}
 
-
-
 			AvgPopFitness = totalfitness / Networks.Count;
 			BestNetwork = null;
 
@@ -169,6 +168,19 @@ namespace NEAT
 			//Console.WriteLine("Run: " + isConsistent());
 		}
 
+		/// <summary>
+		/// Runs each Neural Network of the population through the fitness function and assigns the fitnesses.
+		/// </summary>
+		/// <param name="_threaded">true for multithreading</param>
+		public void Run(bool _threaded)
+		{
+			this.threaded = _threaded;
+			Run();
+		}
+
+		/// <summary>
+		/// Performs speciation, adjusting fitness sums, culling, crossover, and mutation, to generate the next generation of Neural Networks
+		/// </summary>
 		public void Select()
 		{
 			speciesList = new List<Species>();
@@ -283,17 +295,27 @@ namespace NEAT
 		}
 	}
 
+	/// <summary>
+	/// A species is a group of Neural Networks and an associated adjusted fitness sum.
+	/// </summary>
 	public class Species
 	{
 		public double adjustedFitnessSum;
 		public List<NeuralNetwork> networks;
 
+		/// <summary>
+		/// instantiates a new Species.
+		/// </summary>
+		/// <param name="NN">The first NN of the species. Used for all evolutionary distance calculations for this species</param>
 		public Species(NeuralNetwork NN)
 		{
 			networks = new List<NeuralNetwork>() { NN };
 		}
 	}
 
+	/// <summary>
+	/// Represents an organism within the population. An acyclic graph consisting of neurons and connections.
+	/// </summary>
 	public class NeuralNetwork
 	{
 		public Dictionary<int, Neuron> Neurons { get; private set; }
@@ -315,29 +337,12 @@ namespace NEAT
 
 		Random rand = new Random(Guid.NewGuid().GetHashCode());
 
-		public NeuralNetwork(IEnumerable<double> inputs, IEnumerable<string> outputNames, Dictionary<Tuple<int, int>, int> _innovationNumbers)
-		{
-			this.outputNames = (List<string>)outputNames;
-			Neurons = new Dictionary<int, Neuron>();
-			Connections = new List<Tuple<int, int>>();
-			InnovationNumbers = _innovationNumbers;
-			NumInputs = inputs.Count()+1;
-			NumOutputs = outputNames.Count();
-			NumNeurons = NumInputs + NumOutputs;
-			Fitness = double.MinValue;
-			for (int id = 0; id < NumInputs; id++)
-			{
-				Neurons.Add(id, new Neuron(id, inputs.ElementAt(id)));
-			}
-
-			Neurons[0].Value = 1;
-
-			for (int id = 0; id < NumOutputs; id++)
-			{
-				Neurons.Add(id + NumInputs, new Neuron(id + NumInputs));
-			}
-		}
-
+		/// <summary>
+		/// Constructs a NN based off of the number of inouts, the number and names of all outputs.
+		/// </summary>
+		/// <param name="numInputs">The number of inputs this neural network has.</param>
+		/// <param name="outputNames">Enumerable of the names of the outputs.</param>
+		/// <param name="_innovationNumbers">innovation numbers of the entire population</param>
 		public NeuralNetwork(int numInputs, IEnumerable<string> outputNames, Dictionary<Tuple<int, int>, int> _innovationNumbers)
 		{
 			this.outputNames = (List<string>)outputNames;
@@ -361,25 +366,11 @@ namespace NEAT
 			}
 		}
 
+		/// <summary>
+		/// Makes the initial connections frome every inout to every output with random weights.
+		/// </summary>
 		public void InitializeRandom()
 		{
-			//int round1LinksNum = NumInputs * NumOutputs;
-			////int round1NeuronsNum = (int)(rand.NextDouble() * NumOutputs * 2) + 1;
-			////int round2LinksNum = (int)(rand.NextDouble() * NumInputs);
-
-			//for (int i = 0; i < round1LinksNum; i++)
-			//{
-			//	MutateLink();
-			//}
-			//for (int i = 0; i < round1NeuronsNum; i++)
-			//{
-			//	MutateNeuron();
-			//}
-			//for (int i = 0; i < round2LinksNum; i++)
-			//{
-			//	MutateLink();
-			//}
-
 			for (int i = NumInputs; i < NumInputs+NumOutputs; i++) {
 				Neurons.TryGetValue(i, out Neuron outputNeuron);
 				for (int j = 1; j < NumInputs; j++) {
@@ -408,6 +399,11 @@ namespace NEAT
 			}
 		}
 
+		/// <summary>
+		///Evaluates all of the outputs of the neural network.
+		/// </summary>
+		/// <param name="inputs">Enumerable of all the input values</param>
+		/// <returns>dictionary with names of outputs mapping to their values.</returns>
 		public Dictionary<string, double> Evaluate(IEnumerable<double> inputs)
 		{
 			for (int i = 1; i < NumInputs; i++)
@@ -424,28 +420,9 @@ namespace NEAT
 			return outputs;
 		}
 
-		public void DisplayOutputConnections()
-		{
-			for (int i = NumInputs; i < NumInputs+NumOutputs; i++) {
-				Console.WriteLine(Neurons.ElementAt(i).Value.Connections.Count);
-			}
-		}
-
-		//public bool hasDisabled()
-		//{
-		//	foreach (Neuron neuron in Neurons.Values)
-		//	{
-		//		foreach (Connection conn in neuron.Connections.Values)
-		//		{
-		//			if (!conn.Enabled)
-		//			{
-		//				return true;
-		//			}
-		//		}
-		//	}
-		//	return false;
-		//}
-
+		/// <summary>
+		/// Mutates a random link whithin the neural network.
+		/// </summary>
 		public void MutateLink()
 		{
 			int from;
@@ -503,6 +480,9 @@ namespace NEAT
 			}
 		}
 
+		/// <summary>
+		/// mutates a random link in the neural network
+		/// </summary>
 		public void MutateNeuron()
 		{
 			while (true)
@@ -563,11 +543,20 @@ namespace NEAT
 			}
 		}
 
+		/// <summary>
+		/// Returns the count of all Neurons and all connections.
+		/// </summary>
+		/// <returns>The count of all neurons and all connections</returns>
 		public int Size()
 		{
 			return Connections.Count() + Neurons.Count();
 		}
 
+
+		/// <summary>
+		/// Returns a string representing the neural network.
+		/// </summary>
+		/// <returns>A string representing the neural network.</returns>
 		public override string ToString()
 		{
 			{
@@ -590,6 +579,10 @@ namespace NEAT
 			}
 		}
 
+		/// <summary>
+		/// Checks that all connections are represented in the Connections dictionary.
+		/// </summary>
+		/// <returns>True if all connections are represented in the Connections dictionary.</returns>
 		public bool IsConsistent()
 		{
 			try
@@ -618,6 +611,10 @@ namespace NEAT
 			}
 		}
 
+		/// <summary>
+		/// Returns a string in DOT language that can be used to visualize the neural network.
+		/// </summary>
+		/// <returns>A string in DOT language that can be used to visualize the neural network.</returns>
 		public string GenerateDOT()
 		{
 			StringBuilder sb = new StringBuilder("digraph NeuralNetwork{\n");
