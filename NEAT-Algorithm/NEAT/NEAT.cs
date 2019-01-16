@@ -475,7 +475,6 @@ namespace NEAT
 					}
 					Connections.Add(fromToPair);
 					toNeuron.AddConnection(conn.ID, conn);
-					//Console.WriteLine("mutate link: " + isConsistent());
 				}
 			}
 		}
@@ -537,7 +536,6 @@ namespace NEAT
 
 					farNeuron.AddConnection(midToFar.ID, midToFar);
 					NumNeurons++;
-					//Console.WriteLine("Mutate Neuron: " + isConsistent());
 					return;
 				}
 			}
@@ -655,6 +653,9 @@ namespace NEAT
 			return sb.ToString();
 		}
 
+		/// <summary>
+		/// Randomly mutates the neural network by changing weights, adding connections, and/or adding neurons.
+		/// </summary>
 		public void RandomMutation()
 		{
 			double connectionWeightsMutation = rand.NextDouble();
@@ -679,9 +680,12 @@ namespace NEAT
 			{
 				MutateNeuron();
 			}
-			//Console.WriteLine("Random Mutation: "+isConsistent());
 		}
 
+		/// <summary>
+		/// Mutates the connection weights all the neurons the provided neuron is dependent upon.
+		/// </summary>
+		/// <param name="neuron">The top most neuron</param>
 		private void MutateConnections(Neuron neuron)
 		{
 			if (neuron.Connections.Count == 0)
@@ -709,6 +713,13 @@ namespace NEAT
 			}
 		}
 
+		/// <summary>
+		/// Performs crossover on two neural networks and returns the resulting network.
+		/// </summary>
+		/// <param name="NN1">first parent NN</param>
+		/// <param name="NN2">second parent NN</param>
+		/// <param name="InnovationNumbers">the innovation numbers used from a population</param>
+		/// <returns>The resulting child NN</returns>
 		public static NeuralNetwork Crossover(NeuralNetwork NN1, NeuralNetwork NN2, Dictionary<Tuple<int, int>, int> InnovationNumbers)
 		{
 			if (NN1.Fitness == double.MinValue || NN2.Fitness == double.MinValue)
@@ -790,10 +801,16 @@ namespace NEAT
 			}
 			childNetwork.NumNeurons = childNetwork.Neurons.Count;
 			childNetwork.Connections = new List<Tuple<int, int>>(fit.Connections);
-			//Console.WriteLine("Crossover: " + childNetwork.isConsistent());
 			return childNetwork;
 		}
 
+		/// <summary>
+		/// Returns the evolutionary distance between the provided NN's
+		/// </summary>
+		/// <param name="NN1">the first NN</param>
+		/// <param name="NN2">the second NN</param>
+		/// <param name="InnovationNumbers">the innovation numbers used from the population.</param>
+		/// <returns></returns>
 		public static double EvolutionaryDistance(NeuralNetwork NN1, NeuralNetwork NN2, Dictionary<Tuple<int, int>, int> InnovationNumbers)
 		{
 			int N = Math.Max(NN1.Size(), NN2.Size());
@@ -850,23 +867,41 @@ namespace NEAT
 		}
 	}
 
+	/// <summary>
+	/// Represents a single Neuron in a Neural Network.
+	/// </summary>
 	public class Neuron
 	{
 		public int ID { get; private set; }
 		public double Value;
 		public Dictionary<int, Connection> Connections { get; private set; }
 
+		/// <summary>
+		/// Initializes a neuron with an id and a value
+		/// </summary>
+		/// <param name="_id">The id the neuron should be assigned</param>
+		/// <param name="_value">The value of the neuron</param>
 		public Neuron(int _id, double _value) : this(_id)
 		{
 			Value = _value;
 		}
 
+		/// <summary>
+		/// Initializes a neuron with an id
+		/// </summary>
+		/// <param name="_id">The id the neuron should be assigned</param>
 		public Neuron(int _id)
 		{
 			ID = _id;
 			Connections = new Dictionary<int, Connection>();
 		}
 
+		/// <summary>
+		/// adds a connection to the neurons list of connections.
+		/// </summary>
+		/// <param name="id">the id of the connection</param>
+		/// <param name="connection">the connection to be added</param>
+		/// <returns></returns>
 		public bool AddConnection(int id, Connection connection)
 		{
 			if (!Connections.ContainsKey(id))
@@ -880,6 +915,10 @@ namespace NEAT
 			}
 		}
 
+		/// <summary>
+		/// Returns the value of the neuron, the weighted sums and biases of all previous neurons.
+		/// </summary>
+		/// <returns>The value of the neuron</returns>
 		public double GetValue()
 		{
 			if (Connections.Count == 0)
@@ -899,12 +938,20 @@ namespace NEAT
 			}
 		}
 
+		/// <summary>
+		/// Returns the sigmoid output for the given input.
+		/// </summary>
+		/// <param name="rawValue"></param>
+		/// <returns>The sigmoid output for the given input (between 0 and 1)</returns>
 		private double Sigmoid(double rawValue)
 		{
-			return 1 / (1 + Math.Exp(-rawValue));
+			return 1 / (1 + Math.Exp(-4.9 * rawValue));
 		}
 	}
 
+	/// <summary>
+	/// represents a coneection between two neurons.
+	/// </summary>
 	public class Connection
 	{
 		public bool Enabled { get; private set; }
@@ -914,6 +961,12 @@ namespace NEAT
 
 		Random rand = new Random(Guid.NewGuid().GetHashCode());
 
+		/// <summary>
+		/// Constructs a connection
+		/// </summary>
+		/// <param name="_id">ID of the connection.</param>
+		/// <param name="_from">The neuron the connection is from.</param>
+		/// <param name="_weight">The weight of the connection.</param>
 		public Connection(int _id, Neuron _from, double _weight)
 		{
 			ID = _id;
@@ -922,17 +975,26 @@ namespace NEAT
 			Enabled = true;
 		}
 
+		/// <summary>
+		/// Randomly assigns a new weight to the connection.
+		/// </summary>
 		public void MutateWeightRandom()
 		{
 			Weight = rand.NextDouble() * 4 - 2;
 		}
 
+		/// <summary>
+		/// randomly shifts the weight of the connection
+		/// </summary>
 		public void MutateWeightShift()
 		{
 			double shift = rand.NextDouble()*2 - 1;
 			Weight += shift;
 		}
 
+		/// <summary>
+		/// Enables the connection if it is disabled and vice versa.
+		/// </summary>
 		public void EnableDisable()
 		{
 			Enabled = !Enabled;

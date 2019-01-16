@@ -9,6 +9,11 @@ namespace MAIN
 	{
 		static List<List<double>> inputsList;
 		static List<Tuple<int, int, int>> outputs;
+
+		/// <summary>
+		/// Evolves an XOR gate using the NEAT algorithm.
+		/// </summary>
+		/// <param name="args"></param>
 		static void Main(string[] args)
 		{
 			Population pop = new Population(2, new List<string>() { "out" }, 500, FitnessFunction);
